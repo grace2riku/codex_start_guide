@@ -23,7 +23,7 @@ Codexは各タスクが独立したサンドボックス環境で動作します
 
 ### 2.3 Codex CLI 深掘り
 #### 2.3.1 サンドボックス環境とは
-サンドボックス環境とは、タスクごとに独立した実行空間を用意し、そこでコード実行や編集を行う仕組みです。クラウド実行では「各タスクがリポジトリと実行環境を含む隔離サンドボックスで動く」ことが明示されています。CLIでも、モデルが実行するシェルコマンドはサンドボックスポリシーで制限できます。
+サンドボックス環境とは、タスクごとに独立した実行空間を用意し、そこでコード実行や編集を行う仕組みです。Codexのクラウド実行では、各タスクが隔離されたサンドボックス内でリポジトリと実行環境を持つことが明示されています。CLIでも、モデルが実行するシェルコマンドはサンドボックスポリシーで制限できます。
 
 代表的なポリシー:
 - `read-only` / `workspace-write` / `danger-full-access` の3段階で、モデル生成コマンドの実行範囲を制御
@@ -34,12 +34,14 @@ Codexは各タスクが独立したサンドボックス環境で動作します
 
 - `codex`  
   対話型UIで起動。リポジトリを読み、編集し、コマンド実行しながら進めます。
-- `codex "Explain this codebase"`  
-  1回実行で終わるワンショット起動。
-- `codex completion zsh|bash|fish`  
-  シェル補完を導入。
-- `codex features list|enable|disable`  
-  機能フラグの確認と切り替え。
+- `codex exec`  
+  非対話で実行。スクリプトやCIで使いたい場合に有効。
+- `codex resume`  
+  直前のセッションや指定IDのセッションを再開。
+- `codex login` / `codex logout`  
+  認証の開始・解除。
+- `codex features`  
+  機能フラグの一覧・有効化・無効化。
 - `codex mcp`  
   Model Context Protocol (MCP) サーバー設定の管理。
 - `codex sandbox -- <command...>`  
@@ -60,6 +62,8 @@ Codexは各タスクが独立したサンドボックス環境で動作します
   作業ルートを指定。
 - `--output-last-message, -o`  
   最終出力をファイルに保存。
+- `--json`  
+  JSONイベント出力に切り替え（CI向け）。
 
 #### 2.3.3 ソフトウェア開発の流れでの使い方
 開発フェーズごとに、CLIの機能を対応付けると運用が楽になります。
@@ -87,9 +91,61 @@ Codexは各タスクが独立したサンドボックス環境で動作します
 - ビルドルートを限定したい場合  
   `--cd` でファームウェア部分だけを対象にできる。
 - 安全性重視の作業  
-  `--sandbox read-only` で閲覧中心にし、`/permissions` でモードを切り替えながら進める。
+  `--sandbox read-only` で閲覧中心にし、`/permissions` で承認モードを切り替えながら進める。
 - レビューや差分の見直し  
   `/diff` と `/review` をルーチン化すると品質を落としにくい。
+
+#### 2.3.5 具体的なCLIコマンド例
+実務でよく使うパターンを、最小限の例としてまとめます。
+
+```bash
+# 1) リポジトリのルートで対話起動
+codex
+
+# 2) 設計書や配線図などの画像を添付して起動
+codex -i docs/spec.png
+
+# 3) モデルを指定して起動
+codex -m gpt-5-codex
+
+# 4) 作業ディレクトリを限定して起動（ファームウェアだけ触りたい時）
+codex -C firmware
+
+# 5) 追加の書き込み許可ディレクトリを指定
+codex --add-dir ../shared_libs
+
+# 6) 低摩擦モード（承認はon-request、サンドボックスはworkspace-write）
+codex --full-auto
+
+# 7) 承認ポリシーを明示
+codex -a on-request
+codex -a never
+
+# 8) サンドボックスポリシーを明示
+codex --sandbox workspace-write
+
+# 9) サンドボックス下で単発コマンドを実行
+codex sandbox -- make test
+
+# 10) 進捗や最終出力を機械処理しやすくする
+codex --json --output-last-message /tmp/codex_last.txt
+```
+
+#### 2.3.6 組込み向け運用テンプレート（CLI）
+日々の作業を回しやすいように、テンプレート化した運用例です。
+
+```text
+目的: 既存ドライバの初期化シーケンスを理解して改善
+制約: API互換は維持、公開ヘッダは変更しない
+対象: firmware/drivers/*, firmware/board/*
+テスト: make test, ctest, またはターゲット固有のビルドコマンド
+```
+
+推奨フロー:
+- 読み取り中心: `codex -a on-request --sandbox read-only` で開始
+- 変更作業: `codex --full-auto` で反復
+- 差分確認: CLI内で `/diff` → `/review` を実施
+- ルールの定着: `/init` で `AGENTS.md` を生成し、プロジェクト固有ルールを保存
 
 ## 3. Claude Codeとの比較（実務視点）
 ### 3.1 似ている点
