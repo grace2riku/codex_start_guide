@@ -147,6 +147,32 @@ codex --json --output-last-message /tmp/codex_last.txt
 - 差分確認: CLI内で `/diff` → `/review` を実施
 - ルールの定着: `/init` で `AGENTS.md` を生成し、プロジェクト固有ルールを保存
 
+#### 2.3.7 組込み向け運用テンプレート（Renesas RA8P1 / FreeRTOS）
+RA8P1 + FreeRTOS前提で、実運用に寄せた具体例です。プロジェクト固有のビルド手順やターゲット名は読み替えてください。
+
+```text
+目的: RA8P1のタイマ割り込みで使用するFreeRTOSタスクの優先度設計を見直す
+制約: 既存API互換維持、割り込みレイテンシの悪化は避ける、スタック使用量増は最小限
+対象: firmware/rtos/*, firmware/board/ra8p1/*, firmware/drivers/timer/*
+テスト: (例) make test / ctest / board固有のビルド＆フラッシュコマンド
+```
+
+Codexへの指示例:
+
+```text
+目的: RA8P1のタイマ割り込み経由で起床するFreeRTOSタスクの優先度とスタックサイズを整理
+制約: API互換維持、割り込みレイテンシ悪化禁止、stack overflowを回避
+対象: firmware/rtos/*, firmware/board/ra8p1/*, firmware/drivers/timer/*
+出力: 変更点サマリとdiff提示
+テスト: make test
+```
+
+推奨フロー:
+- 読み取り中心: `codex -a on-request --sandbox read-only`
+- 変更作業: `codex --full-auto` で反復
+- タスクの妥当性確認: `/review` で優先度やリソース使用の懸念点を列挙
+- 差分確認: `/diff` で実変更を確認
+
 ## 3. Claude Codeとの比較（実務視点）
 ### 3.1 似ている点
 - どちらもターミナルから自然言語で指示できるCLIがある
